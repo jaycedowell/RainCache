@@ -444,7 +444,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "LowBatteryCutoff.kicad_pro",
+    "filename": "TankGauge.kicad_pro",
     "version": 1
   },
   "net_settings": {
@@ -481,7 +481,7 @@
       "netlist": "",
       "plot": "Gerbers/",
       "pos_files": "",
-      "specctra_dsn": "LowBatteryCutoff.dsn",
+      "specctra_dsn": "TankGauge.dsn",
       "step": "",
       "svg": "",
       "vrml": ""
