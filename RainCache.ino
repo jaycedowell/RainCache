@@ -19,6 +19,7 @@
 WiFiServer server(80);
 
 ESP32Time rtc(0);
+unsigned long lastNTPSync = 0;
 
 Adafruit_MAX17048 maxlipo;
 TMP100 tmp100;
@@ -50,6 +51,9 @@ void setup() {
   WiFi.config(staticIP, gateway, subnet, primaryDNS, secondaryDNS);
   delay(10);
 
+  // Set the last NTP sync time to zero
+  lastNTPSync = 0;
+
   led_off();
 }
 
@@ -79,15 +83,26 @@ void loop() {
     }
 
     // Connect to a NTP server to set the RTC
-    configTime(0, 0, "0.north-america.pool.ntp.org");
+    configTime(0, 0, "0.north-america.pool.ntp.org", "1.north-america.pool.ntp.org", "time.nist.gov");
     struct tm timeinfo;
     if( getLocalTime(&timeinfo) ) {
-      rtc.setTimeStruct(timeinfo); 
+      rtc.setTimeStruct(timeinfo);
+      lastNTPSync = millis();
     }
 
     // LED off and get ready to receive HTTP requests
     led_off();
     server.begin();
+  }
+
+  if( (millis() - lastNTPSync) > 86400*1000 ) {
+    // Connect to a NTP server to set the RTC
+    configTime(0, 0, "0.north-america.pool.ntp.org", "1.north-america.pool.ntp.org", "time.nist.gov");
+    struct tm timeinfo;
+    if( getLocalTime(&timeinfo) ) {
+      rtc.setTimeStruct(timeinfo);
+      lastNTPSync = millis();
+    }
   }
 
   WiFiClient client = server.available();
@@ -222,8 +237,9 @@ void loop() {
   
               float dist = get_distance();
               int i = 0;
-              while( (dist < 0 || dist > 4) && i < 1 ) {
+              while( (dist < 0 || dist > 4) && i < 5 ) {
                 dist = get_distance();
+                i += 1;
               }
               float dist_err = 3/1000.0 + dist*0.01;
               client.print("Distance to water is ");
@@ -302,13 +318,14 @@ float get_temp() {
   // temperature of -99 C if the polling failed.
   
   if( !tmp100.isDeviceReady() ) {
-    led_fail();
+    led_fail(2, 100);
     return -99.0;
   }
 
   float result = tmp100.getTemp();
   if( result < -90 ) {
-    led_fail();
+    led_fail(3, 100);
+    return -99.0;
   }
 
   return result;
@@ -318,7 +335,14 @@ float get_distance() {
   // Poll the DFRobot SEN0208 ("Waterproof Ultrasonic Distance Sensor
   // with Separate Probe") running in mode 2 for the current distance
   // in m.  Returns <= 0 m if the polling failed.
+
   Serial0.flush();
+  while( Serial0.available() ) {
+    Serial0.read();
+  }
+
+  delay(5);
+
   Serial0.write(0x55);
   
   delay(100);
@@ -326,7 +350,7 @@ float get_distance() {
   unsigned long startTime = millis();
   while( Serial0.available() < 4 ) {
     if( (millis() - startTime) > 100 ) {
-      led_fail();
+      led_fail(2, 250);
       return -1.0;
     }
     delay(5);
@@ -345,10 +369,12 @@ float get_distance() {
       dist_m = raw_dist[1]*256.0 + raw_dist[2];   // Really in mm at this point
       dist_m /= 1000.0;                           // Now it's meters
     } else {
-      led_warn();
+      led_warn(2, 100);
+      return -1.0;
     }
   } else {
-    led_warn();
+    led_warn(3, 100);
+    return -1.0;
   }
 
   return dist_m;
@@ -450,26 +476,26 @@ void led_blue() {
   digitalWrite(LED_BLUE, LOW);
 }
 
-void led_warn() {
+void led_warn(int count, int interval_ms) {
   // Blink the red LED to inidicate an error
-  for(int i=0; i<6; i++) {
-    if( i % 2 ) {
-      led_yellow();
-    } else {
+  for(int i=0; i<2*count; i++) {
+    if( i % 2 == 0 ) {
       led_off();
+    } else {
+      led_yellow();
     }
-    delay(100);
+    delay(interval_ms);
   }
 }
 
-void led_fail() {
+void led_fail(int count, int interval_ms) {
   // Blink the red LED to inidicate an error
-  for(int i=0; i<6; i++) {
-    if( i % 2 ) {
-      led_red();
-    } else {
+  for(int i=0; i<2*count; i++) {
+    if( i % 2 == 0 ) {
       led_off();
+    } else {
+      led_red();
     }
-    delay(100);
+    delay(interval_ms);
   }
 }
