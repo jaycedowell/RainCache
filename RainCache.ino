@@ -38,16 +38,21 @@ float lipo_soc_volt[] = {4.2 , 4.15, 4.11, 4.08, 4.02,  // 100, 95, 90, 85, 80
 #define LED_GREEN D2
 #define LED_BLUE D3
 
+#define PGOOD_PIN D9
+#define CHRG_PIN D8
+
+#define VBATT_PIN A0
+
 void setup() {
   // Set the pins for the on-board RGB LED to output
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
 
-  pinMode(D8, INPUT);
-  pinMode(D9, INPUT);
+  pinMode(PGOOD_PIN, INPUT);
+  pinMode(CHRG_PIN, INPUT);
 
-  pinMode(A0, INPUT); 
+  pinMode(VBATT_PIN, INPUT);
   
   // Enable the SoC temperature sensor
   temperature_sensor_install(&temp_sensor_config, &temp_sensor);
@@ -186,7 +191,7 @@ void loop() {
               client.println("<body>");
 
               client.print("Input Power? ");
-              if( digitalRead(D9) == 0 ) {
+              if( digitalRead(PGOOD_PIN) == 0 ) {
                 client.print("Yes");
               } else {
                 client.print("No");
@@ -194,7 +199,7 @@ void loop() {
               client.println("<br>");
 
               client.print("Charging? ");
-              if( digitalRead(D8) == 0 ) {
+              if( digitalRead(CHRG_PIN) == 0 ) {
                 client.print("Yes");
               } else {
                 client.print("No");
@@ -243,6 +248,16 @@ void loop() {
                 client.println(" F<br>");
               } else {
                 client.println("unknown<br>");
+              }
+
+              float ref = get_reference();
+              client.print("Reference voltage is ");
+              if( ref >= 0 ) {
+                client.print(ref);
+
+              } else {
+                client.println("unknown<br>");
+                client.println(" V<br>");
               }
   
               float depth = get_depth();
@@ -342,7 +357,7 @@ float get_battery_voltage() {
   float mV_bat = 0.0;
   int count = 0;
   for(int i=0; i<50; i++) {
-    int value_bat = analogReadMilliVolts(A0);
+    int value_bat = analogReadMilliVolts(VBATT_PIN);
     mV_bat += value_bat;
     count++;
   }
@@ -422,6 +437,24 @@ float depth_to_volume_per_tank(float depth_in) {
     vol_gal = 0.0;
   }
   return vol_gal;
+}
+
+float get_reference() {
+  // Poll the 2.5 V voltage divider and return the voltage.  Returns
+  // < 0 inch if the polling failed.
+
+  float mV_ref = 0.0;
+  int count = 0;
+  for(int i=0; i<50; i++) {
+    int value_ref = ads1115.readADC_Differential_0_1();
+    mV_ref -= value_ref;  // Negative because of how the signals are connected
+    count++;
+    delay(1);
+  }
+
+  mV_ref /= count;
+  
+  return mV_ref;
 }
 
 int led_state = 0;
@@ -510,7 +543,7 @@ void led_warn(int count, int interval_ms) {
 
 void led_fail(int count, int interval_ms) {
   // Blink the red LED to inidicate an error
-  
+
   for(int i=0; i<2*count; i++) {
     if( i % 2 == 0 ) {
       led_off();
