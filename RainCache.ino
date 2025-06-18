@@ -254,14 +254,13 @@ void loop() {
               client.print("Reference voltage is ");
               if( ref >= 0 ) {
                 client.print(ref);
-
+                client.println(" V<br>");
               } else {
                 client.println("unknown<br>");
-                client.println(" V<br>");
               }
   
               float depth = get_depth();
-              client.print("Distance to water is ");
+              client.print("Depth of water is ");
               if( depth >= 0 ) {
                 client.print(depth);
                 client.print(" +/- ");
@@ -360,11 +359,12 @@ float get_battery_voltage() {
     int value_bat = analogReadMilliVolts(VBATT_PIN);
     mV_bat += value_bat;
     count++;
+    delay(1);
   }
 
   mV_bat /= count;
   
-  return mV_bat / 1000.0 * 4 / 3;
+  return mV_bat / 1000.0 * 2;
 }
 
 float get_battery_charge(float V_bat) {
@@ -454,7 +454,7 @@ float get_reference() {
 
   mV_ref /= count;
   
-  return mV_ref;
+  return mV_ref * 0.000125;
 }
 
 int led_state = 0;
